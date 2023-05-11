@@ -1,6 +1,5 @@
 ---
 - name: Install Docker and Portainer, remove Podman and Buildah
-  hosts: your_host_group
   become: true
   tasks:
     - name: Remove Podman and Buildah
