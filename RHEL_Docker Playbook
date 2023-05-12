@@ -1,50 +1,69 @@
 ---
-- name: Install Docker and Portainer, remove Podman and Buildah
+- name: Install Docker and Portainer on Rocky Linux
+  hosts: all
   become: true
+
   tasks:
     - name: Remove Podman and Buildah
-      yum:
+      package:
         name: "{{ item }}"
         state: absent
       loop:
         - podman
         - buildah
-      when: ansible_distribution_major_version == '9' and ansible_distribution_version | version_compare('9.2', '<')
 
-    - name: Install required packages
-      yum:
+    - name: Install Docker dependencies
+      package:
+        name: dnf-plugins-core
+        state: present
+
+    - name: Add Docker repository
+      get_url:
+        url: https://download.docker.com/linux/centos/docker-ce.repo
+        dest: /etc/yum.repos.d/docker-ce.repo
+
+    - name: Install Docker
+      package:
         name: "{{ item }}"
         state: present
       loop:
-        - docker
-        - docker-ce-cli
+        - docker-ce
         - containerd.io
 
-    - name: Enable and start Docker service
+    - name: Start and enable Docker service
       service:
         name: docker
         state: started
         enabled: true
 
-    - name: Add Docker GPG key
-      rpm_key:
-        key: https://download.docker.com/linux/{{ ansible_distribution|lower }}/gpg
+    - name: Install python3-pip package
+      package:
+        name: python3-pip
+        state: present
 
-    - name: Add Docker repository
-      yum_repository:
+    - name: Install Docker SDK for Python library
+      pip:
         name: docker
-        baseurl: https://download.docker.com/linux/{{ ansible_distribution|lower }}/{{ ansible_distribution_major_version }}/x86_64/stable
-        gpgcheck: yes
-        enabled: yes
-        gpgkey: https://download.docker.com/linux/{{ ansible_distribution|lower }}/gpg
+        executable: pip3
 
-    - name: Install Portainer
-      docker_container:
+    - name: Create Portainer volume
+      community.general.docker_volume:
+        name: portainer_data
+        state: present
+
+    - name: Run Portainer container
+      community.general.docker_container:
         name: portainer
-        image: portainer/portainer-ce:latest
-        restart_policy: unless-stopped
-        published_ports:
-          - 9000:9000
-        volumes:
-          - /var/run/docker.sock:/var/run/docker.sock
+        image: portainer/portainer-ce
         state: started
+        restart_policy: always
+        ports:
+          - "8000:8000"
+          - "9000:9000"
+        volumes:
+          - "/var/run/docker.sock:/var/run/docker.sock"
+          - "portainer_data:/data"
+
+    - name: Print success message
+      debug:
+        msg: "Docker and Portainer have been installed successfully."
